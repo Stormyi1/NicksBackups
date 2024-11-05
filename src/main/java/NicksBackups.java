@@ -5,24 +5,23 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.plugin.java.JavaPlugin;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
+import java.sql.Timestamp;
 
 public class NicksBackups extends JavaPlugin implements CommandExecutor, TabCompleter {
-
     private static final String BACKUP_FOLDER = "/backups/normal";
     private static final String FORCED_BACKUP_FOLDER = "/backups/forced";
-    
 
     @Override
     public void onEnable() {
         this.getCommand("load-backup").setExecutor(this);
         this.getCommand("load-backup").setTabCompleter(this);
+        this.getCommand("force-backup").setExecutor(this);
         
         // Debug logging
         getLogger().info("Normal backup path exists: " + new File(BACKUP_FOLDER).exists());
@@ -39,7 +38,6 @@ public class NicksBackups extends JavaPlugin implements CommandExecutor, TabComp
 
             String backupType = args[0].toLowerCase();
             String backupName = args[1];
-            
             if (!backupType.equals("normal") && !backupType.equals("forced")) {
                 sender.sendMessage("Invalid backup type. Use 'normal' or 'forced'");
                 return false;
@@ -47,7 +45,6 @@ public class NicksBackups extends JavaPlugin implements CommandExecutor, TabComp
 
             String backupPath = backupType.equals("normal") ? BACKUP_FOLDER : FORCED_BACKUP_FOLDER;
             File backupDir = new File(backupPath, backupName);
-
             if (!backupDir.exists()) {
                 sender.sendMessage("Backup not found: " + backupName);
                 return false;
@@ -66,6 +63,39 @@ public class NicksBackups extends JavaPlugin implements CommandExecutor, TabComp
                 e.printStackTrace();
                 return false;
             }
+        } else if (command.getName().equalsIgnoreCase("force-backup")) {
+            // Create timestamp for backup name
+            Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+            String backupName = "forced_backup_" + timestamp.getTime() + "_uc";
+            
+            File forcedBackupDir = new File(FORCED_BACKUP_FOLDER, backupName);
+            if (!forcedBackupDir.exists()) {
+                forcedBackupDir.mkdirs();
+            }
+
+            try {
+                // Copy current worlds to backup
+                File serverDir = getServer().getWorldContainer();
+                String[] worlds = {"world", "world_nether", "world_the_end"};
+                
+                for (String worldName : worlds) {
+                    File sourceWorld = new File(serverDir, worldName);
+                    File destWorld = new File(forcedBackupDir, worldName);
+                    if (sourceWorld.exists()) {
+                        copyDirectory(sourceWorld.toPath(), destWorld.toPath());
+                        sender.sendMessage("Backed up world: " + worldName);
+                    }
+                }
+                
+                sender.sendMessage("Forced backup created successfully: " + backupName);
+                return true;
+                
+            } catch (IOException e) {
+                sender.sendMessage("Error creating forced backup: " + e.getMessage());
+                getLogger().severe("Forced backup failed: " + e.getMessage());
+                e.printStackTrace();
+                return false;
+            }
         }
         return false;
     }
@@ -77,9 +107,8 @@ public class NicksBackups extends JavaPlugin implements CommandExecutor, TabComp
                 return List.of("normal", "forced");
             } else if (args.length == 2) {
                 List<String> backups = new ArrayList<>();
-                File backupFolder = args[0].equalsIgnoreCase("forced") ? 
+                File backupFolder = args[0].equalsIgnoreCase("forced") ?
                     new File(FORCED_BACKUP_FOLDER) : new File(BACKUP_FOLDER);
-                
                 if (backupFolder.exists()) {
                     String prefix = args[0].equalsIgnoreCase("forced") ? "forced_backup_" : "backup_";
                     File[] files = backupFolder.listFiles((dir, name) -> name.startsWith(prefix));
@@ -95,10 +124,9 @@ public class NicksBackups extends JavaPlugin implements CommandExecutor, TabComp
         return null;
     }
 
-    private void deleteCurrentWorlds() {
+    private void deleteCurrentWorlds() throws IOException {
         File serverPath = getServer().getWorldContainer();
         String[] worlds = {"world", "world_nether", "world_the_end"};
-        
         for (String worldName : worlds) {
             try {
                 File worldFolder = new File(serverPath, worldName);
@@ -132,11 +160,9 @@ public class NicksBackups extends JavaPlugin implements CommandExecutor, TabComp
     private void copyBackupToServer(File backupDir) throws IOException {
         File serverDir = getServer().getWorldContainer();
         String[] worlds = {"world", "world_nether", "world_the_end"};
-        
         for (String worldName : worlds) {
             File sourceWorld = new File(backupDir, worldName);
             File destWorld = new File(serverDir, worldName);
-            
             if (sourceWorld.exists()) {
                 copyDirectory(sourceWorld.toPath(), destWorld.toPath());
                 getLogger().info("Restored " + worldName + " from backup");
