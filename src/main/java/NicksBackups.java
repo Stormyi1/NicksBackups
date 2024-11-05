@@ -48,10 +48,19 @@ public class NicksBackups extends JavaPlugin implements CommandExecutor, TabComp
                 return false;
             }
 
-            deleteCurrentWorlds();
-            sender.sendMessage("Worlds deleted, now loading backup: " + backupName);
-            // Here you would add the logic to load the backup
-            return true;
+            try {
+                deleteCurrentWorlds();
+                sender.sendMessage("Worlds deleted, now loading backup: " + backupName);
+                copyBackupToServer(backupDir);
+                sender.sendMessage("Backup restored successfully. Restarting server...");
+                restartServer();
+                return true;
+            } catch (IOException e) {
+                sender.sendMessage("Error while restoring backup: " + e.getMessage());
+                getLogger().severe("Backup restoration failed: " + e.getMessage());
+                e.printStackTrace();
+                return false;
+            }
         }
         return false;
     }
@@ -113,5 +122,44 @@ public class NicksBackups extends JavaPlugin implements CommandExecutor, TabComp
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    private void copyBackupToServer(File backupDir) throws IOException {
+        File serverDir = getServer().getWorldContainer();
+        String[] worlds = {"world", "world_nether", "world_the_end"};
+        
+        for (String worldName : worlds) {
+            File sourceWorld = new File(backupDir, worldName);
+            File destWorld = new File(serverDir, worldName);
+            
+            if (sourceWorld.exists()) {
+                copyDirectory(sourceWorld.toPath(), destWorld.toPath());
+                getLogger().info("Restored " + worldName + " from backup");
+            }
+        }
+    }
+
+    private void copyDirectory(Path source, Path target) throws IOException {
+        Files.walkFileTree(source, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                Path targetDir = target.resolve(source.relativize(dir));
+                Files.createDirectories(targetDir);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.copy(file, target.resolve(source.relativize(file)), StandardCopyOption.REPLACE_EXISTING);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
+    private void restartServer() {
+        getServer().getScheduler().runTaskLater(this, () -> {
+            getServer().broadcastMessage("Server is restarting to apply backup...");
+            getServer().spigot().restart();
+        }, 60L); // 3 second delay
     }
 }
