@@ -15,13 +15,17 @@ import java.util.List;
 
 public class NicksBackups extends JavaPlugin implements CommandExecutor, TabCompleter {
 
-    private static final String BACKUP_FOLDER = "/home/mcserver/mc_server/backupsPlugin/normal";
-    private static final String FORCED_BACKUP_FOLDER = "/home/mcserver/mc_server/backupsPlugin/forced";
+    private static final String BACKUP_FOLDER = "/home/mcserver/backups/normal";
+    private static final String FORCED_BACKUP_FOLDER = "/home/mcserver/backups/forced";
 
     @Override
     public void onEnable() {
         this.getCommand("load-backup").setExecutor(this);
         this.getCommand("load-backup").setTabCompleter(this);
+        
+        // Debug logging
+        getLogger().info("Normal backup path exists: " + new File(BACKUP_FOLDER).exists());
+        getLogger().info("Forced backup path exists: " + new File(FORCED_BACKUP_FOLDER).exists());
     }
 
     @Override
