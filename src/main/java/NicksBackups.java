@@ -21,7 +21,7 @@ import java.util.List;
 
 public class NicksBackups extends JavaPlugin implements CommandExecutor, TabCompleter {
 
-    private final String SERVER_PATH = getServer().getWorldContainer().getAbsolutePath() + "/";
+    private static final String SERVER_PATH = "/home/mcserver/mc_server/minecraftbukkit";
     private static final String BACKUP_FOLDER = "/home/mcserver/mc_server/backupsPlugin/normal";
     private static final String FORCED_BACKUP_FOLDER = "/home/mcserver/mc_server/backupsPlugin/forced";
     private static final long BACKUP_INTERVAL = 10 * 60 * 20L; // alle 10 Minuten (in Ticks)
