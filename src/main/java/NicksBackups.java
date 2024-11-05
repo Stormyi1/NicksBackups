@@ -12,6 +12,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -20,7 +21,7 @@ import java.util.List;
 
 public class NicksBackups extends JavaPlugin implements CommandExecutor, TabCompleter {
 
-    private static final String SERVER_PATH = "/home/mcserver/mc_server/minecraftbukkit";
+    private static final String SERVER_PATH = getServer().getWorldContainer().getAbsolutePath() + "/";
     private static final String BACKUP_FOLDER = "/home/mcserver/mc_server/backupsPlugin/normal";
     private static final String FORCED_BACKUP_FOLDER = "/home/mcserver/mc_server/backupsPlugin/forced";
     private static final long BACKUP_INTERVAL = 10 * 60 * 20L; // alle 10 Minuten (in Ticks)
@@ -62,23 +63,32 @@ public class NicksBackups extends JavaPlugin implements CommandExecutor, TabComp
             newBackupFolder = new File(BACKUP_FOLDER, "backup_" + timestamp);
         }
 
-        newBackupFolder.mkdirs();
+        getLogger().info("Creating backup folder: " + newBackupFolder.getAbsolutePath());
+        if (!newBackupFolder.mkdirs()) {
+            getLogger().warning("Failed to create backup directory or it already exists");
+        }
 
         for (String worldName : new String[]{"world", "world_nether", "world_the_end"}) {
             File sourceDir = new File(SERVER_PATH, worldName);
             File targetDir = new File(newBackupFolder, worldName);
 
-            // Check if source directory exists before copying
-            if (!sourceDir.exists()) {
-                getLogger().warning("Source directory does not exist: " + sourceDir.getAbsolutePath());
-                continue; // Skip to the next world
-            }
-            getLogger().info("Creating backup from: " + sourceDir.getAbsolutePath() + " to: " + targetDir.getAbsolutePath());
+            getLogger().info("Checking source directory: " + sourceDir.getAbsolutePath());
+            getLogger().info("Source directory exists: " + sourceDir.exists());
+            getLogger().info("Source directory is directory: " + sourceDir.isDirectory());
 
+            if (!sourceDir.exists() || !sourceDir.isDirectory()) {
+                getLogger().warning("Source directory invalid: " + sourceDir.getAbsolutePath());
+                continue;
+            }
+
+            getLogger().info("Starting backup of " + worldName);
             try {
-                copyDirectory(sourceDir.toPath(), targetDir.toPath());
+                Files.createDirectories(targetDir.toPath());
+                copyDirectoryImproved(sourceDir.toPath(), targetDir.toPath());
+                getLogger().info("Successfully backed up " + worldName);
             } catch (IOException e) {
-                getLogger().severe("Failed to copy directory: " + sourceDir.getAbsolutePath() + " to " + targetDir.getAbsolutePath() + " due to " + e.getMessage());
+                getLogger().severe("Failed to copy " + worldName + ": " + e.getMessage());
+                e.printStackTrace();
             }
         }
 
@@ -110,24 +120,49 @@ public class NicksBackups extends JavaPlugin implements CommandExecutor, TabComp
         isLocked = false;
     }
 
-    private void copyDirectory(Path source, Path target) throws IOException {
-        Files.walk(source).forEach(src -> {
-            try {
-                Path dest = target.resolve(source.relativize(src));
-                Files.copy(src, dest, StandardCopyOption.REPLACE_EXISTING);
-            } catch (IOException e) {
-                getLogger().severe("Failed to copy file: " + src.toString() + " to " + target.toString());
-                e.printStackTrace(); // Log the stack trace for more information
+    private void copyDirectoryImproved(Path source, Path target) throws IOException {
+        Files.walkFileTree(source, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                Path targetDir = target.resolve(source.relativize(dir));
+                try {
+                    Files.copy(dir, targetDir, StandardCopyOption.COPY_ATTRIBUTES);
+                } catch (FileAlreadyExistsException e) {
+                    if (!Files.isDirectory(targetDir))
+                        throw e;
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Path targetFile = target.resolve(source.relativize(file));
+                try {
+                    Files.copy(file, targetFile, StandardCopyOption.COPY_ATTRIBUTES, StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException e) {
+                    getLogger().warning("Failed to copy file: " + file + " - " + e.getMessage());
+                    throw e;
+                }
+                return FileVisitResult.CONTINUE;
             }
         });
     }
 
     private void deleteDirectory(Path path) throws IOException {
         if (Files.exists(path)) {
-            Files.walk(path)
-                 .sorted(Comparator.reverseOrder())
-                 .map(Path::toFile)
-                 .forEach(File::delete);
+            Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    Files.delete(file);
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                    Files.delete(dir);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
         }
     }
 
