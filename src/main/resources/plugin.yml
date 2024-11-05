@@ -6,6 +6,8 @@ commands:
   load-backup:
     description: Load a backup
     usage: /<command> <timestamp>
+    permission: op
   force-backup:
     description: Force a backup
     usage: /<command>
+    permission: op
