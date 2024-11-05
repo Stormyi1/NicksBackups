@@ -1,0 +1,11 @@
+name: NicksBackups
+version: '1.0'
+main: dev.nicks.NicksBackups
+api-version: '1.13'
+commands:
+  load-backup:
+    description: Load a backup
+    usage: /<command> <timestamp>
+  force-backup:
+    description: Force a backup
+    usage: /<command>
