@@ -15,8 +15,9 @@ import java.util.List;
 
 public class NicksBackups extends JavaPlugin implements CommandExecutor, TabCompleter {
 
-    private static final String BACKUP_FOLDER = "/home/mcserver/backups/normal";
-    private static final String FORCED_BACKUP_FOLDER = "/home/mcserver/backups/forced";
+    private static final String BACKUP_FOLDER = "/backups/normal";
+    private static final String FORCED_BACKUP_FOLDER = "/backups/forced";
+    
 
     @Override
     public void onEnable() {
